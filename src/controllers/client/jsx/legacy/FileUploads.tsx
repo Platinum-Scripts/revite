@@ -15,6 +15,27 @@ import { modalController } from "../../../modals/ModalController";
 import { clientController, useClient } from "../../ClientController";
 import { takeError } from "../error";
 
+const allowedMimeTypes = new Set([
+    "image/aces", "image/apng", "image/avci", "image/avcs", "image/avif",
+    "image/bmp", "image/cgm", "image/dicom-rle", "image/dpx", "image/emf",
+    "image/example", "image/fits", "image/g3fax", "image/gif", "image/heic",
+    "image/heic-sequence", "image/heif", "image/heif-sequence", "image/hej2k",
+    "image/hsj2", "image/ief", "image/j2c", "image/jls", "image/jp2",
+    "image/jpeg", "image/jph", "image/jphc", "image/jpm", "image/jpx", "image/jxl",
+    "image/jxr", "image/jxrA", "image/jxrS", "image/jxs", "image/jxsc", "image/jxsi",
+    "image/jxss", "image/ktx", "image/ktx2", "image/naplps", "image/png",
+    "image/prs.btif", "image/prs.pti", "image/pwg-raster", "image/svg+xml", "image/t38",
+    "image/tiff", "image/tiff-fx", "image/vnd.adobe.photoshop", "image/vnd.airzip.accelerator.azv",
+    "image/vnd.cns.inf2", "image/vnd.dece.graphic", "image/vnd.djvu", "image/vnd.dwg",
+    "image/vnd.dxf", "image/vnd.dvb.subtitle", "image/vnd.fastbidsheet", "image/vnd.fpx",
+    "image/vnd.fst", "image/vnd.fujixerox.edmics-mmr", "image/vnd.fujixerox.edmics-rlc",
+    "image/vnd.globalgraphics.pgb", "image/vnd.microsoft.icon", "image/vnd.mix", "image/vnd.ms-modi",
+    "image/vnd.mozilla.apng", "image/vnd.net-fpx", "image/vnd.pco.b16", "image/vnd.radiance",
+    "image/vnd.sealed.png", "image/vnd.sealedmedia.softseal.gif", "image/vnd.sealedmedia.softseal.jpg",
+    "image/vnd.svf", "image/vnd.tencent.tap", "image/vnd.valve.source.texture", "image/vnd.wap.wbmp",
+    "image/vnd.xiff", "image/vnd.zbrush.pcx", "image/webp", "image/wmf", "image/x-emf", "image/x-wmf", "text/plain"
+]);
+
 type BehaviourType =
     | { behaviour: "ask"; onChange: (file: File) => void }
     | {
@@ -89,6 +110,7 @@ export function grabFiles(
     maxFileSize: number,
     cb: (files: File[]) => void,
     tooLarge: () => void,
+    notAllowed: () => void,
     multiple?: boolean,
 ) {
     if (input) {
@@ -96,29 +118,7 @@ export function grabFiles(
     }
 
     input = document.createElement("input");
-
-    // Updated to only accept specified MIME types
-    input.accept = [
-        "image/aces", "image/apng", "image/avci", "image/avcs", "image/avif",
-        "image/bmp", "image/cgm", "image/dicom-rle", "image/dpx", "image/emf",
-        "image/example", "image/fits", "image/g3fax", "image/gif", "image/heic",
-        "image/heic-sequence", "image/heif", "image/heif-sequence", "image/hej2k",
-        "image/hsj2", "image/ief", "image/j2c", "image/jls", "image/jp2",
-        "image/jpeg", "image/jph", "image/jphc", "image/jpm", "image/jpx", "image/jxl",
-        "image/jxr", "image/jxrA", "image/jxrS", "image/jxs", "image/jxsc", "image/jxsi",
-        "image/jxss", "image/ktx", "image/ktx2", "image/naplps", "image/png",
-        "image/prs.btif", "image/prs.pti", "image/pwg-raster", "image/svg+xml", "image/t38",
-        "image/tiff", "image/tiff-fx", "image/vnd.adobe.photoshop", "image/vnd.airzip.accelerator.azv",
-        "image/vnd.cns.inf2", "image/vnd.dece.graphic", "image/vnd.djvu", "image/vnd.dwg",
-        "image/vnd.dxf", "image/vnd.dvb.subtitle", "image/vnd.fastbidsheet", "image/vnd.fpx",
-        "image/vnd.fst", "image/vnd.fujixerox.edmics-mmr", "image/vnd.fujixerox.edmics-rlc",
-        "image/vnd.globalgraphics.pgb", "image/vnd.microsoft.icon", "image/vnd.mix", "image/vnd.ms-modi",
-        "image/vnd.mozilla.apng", "image/vnd.net-fpx", "image/vnd.pco.b16", "image/vnd.radiance",
-        "image/vnd.sealed.png", "image/vnd.sealedmedia.softseal.gif", "image/vnd.sealedmedia.softseal.jpg",
-        "image/vnd.svf", "image/vnd.tencent.tap", "image/vnd.valve.source.texture", "image/vnd.wap.wbmp",
-        "image/vnd.xiff", "image/vnd.zbrush.pcx", "image/webp", "image/wmf", "image/x-emf", "image/x-wmf"
-    ].join(",");
-
+    input.accept = Array.from(allowedMimeTypes).join(",");
     input.type = "file";
     input.multiple = multiple ?? false;
     input.style.display = "none";
@@ -127,17 +127,22 @@ export function grabFiles(
         const files = (e.currentTarget as HTMLInputElement)?.files;
         if (!files) return;
 
+        const validFiles = [];
         for (const file of files) {
             if (file.size > maxFileSize) {
-                return tooLarge();
+                tooLarge();
+                return;
             }
+            if (!allowedMimeTypes.has(file.type)) {
+                notAllowed();
+                return;
+            }
+            validFiles.push(file);
         }
 
-        cb(Array.from(files));
+        cb(validFiles);
     });
 
-    // iOS requires us to append the file input
-    // to DOM to allow us to add any images
     document.body.appendChild(input);
     input.click();
 }
@@ -271,6 +276,14 @@ export function FileUploader(props: Props) {
                 if (dropped) {
                     const files = [];
                     for (const item of dropped) {
+                        if (!allowedMimeTypes.has(item.type)) {
+                            modalController.push({
+                                type: "error",
+                                error: "InvalidFileType",
+                            });
+                            continue;
+                        }
+
                         if (item.size > props.maxFileSize) {
                             modalController.push({
                                 type: "error",
